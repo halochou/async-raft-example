@@ -9,7 +9,17 @@ const NODES: [&str; 3] = ["127.0.0.1:5000", "127.0.0.1:5001", "127.0.0.1:5002"];
 
 pub type MemRaft = async_raft::Raft<ClientRequest, ClientResponse, RaftRouter, MemStore>;
 
-pub struct RaftRouter {}
+pub struct RaftRouter {
+    client: reqwest::Client
+}
+
+impl RaftRouter {
+    pub fn new() -> Self {
+        RaftRouter {
+            client: reqwest::Client::new()
+        }
+    }
+}
 
 #[async_trait]
 impl RaftNetwork<ClientRequest> for RaftRouter {
@@ -20,8 +30,7 @@ impl RaftNetwork<ClientRequest> for RaftRouter {
     ) -> Result<raft::AppendEntriesResponse> {
         let addr = NODES.get(target as usize).unwrap();
         let url = format!("http://{}/append-entries", addr);
-        let client = reqwest::Client::new();
-        let resp = client
+        let resp = self.client
             .post(url)
             .json(&rpc)
             .send()
@@ -38,8 +47,7 @@ impl RaftNetwork<ClientRequest> for RaftRouter {
     ) -> Result<raft::InstallSnapshotResponse> {
         let addr = NODES.get(target as usize).unwrap();
         let url = format!("http://{}/install-snapshot", addr);
-        let client = reqwest::Client::new();
-        let resp = client
+        let resp = self.client
             .post(url)
             .json(&rpc)
             .send()
@@ -52,8 +60,7 @@ impl RaftNetwork<ClientRequest> for RaftRouter {
     async fn vote(&self, target: NodeId, rpc: raft::VoteRequest) -> Result<raft::VoteResponse> {
         let addr = NODES.get(target as usize).unwrap();
         let url = format!("http://{}/vote", addr);
-        let client = reqwest::Client::new();
-        let resp = client
+        let resp = self.client
             .post(url)
             .json(&rpc)
             .send()
@@ -70,7 +77,7 @@ pub fn new(node_id: u64) -> MemRaft {
             .validate()
             .expect("failed to build Raft config"),
     );
-    let network = Arc::new(RaftRouter {});
+    let network = Arc::new(RaftRouter::new());
     let storage = Arc::new(MemStore::new(node_id));
     raft::Raft::new(node_id, config, network, storage)
 }
